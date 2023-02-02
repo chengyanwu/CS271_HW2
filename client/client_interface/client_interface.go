@@ -2,6 +2,7 @@ package client
 
 import (
 	"net"
+	"fmt"
 )
 
 type ClientInfo struct {
@@ -18,5 +19,9 @@ type ConnectionInfo struct {
 
 func (c ClientInfo) String() string {
 	// TODO
-	return "TODO"
+	return fmt.Sprintf("\n===== Client Info =====\nProcessID: %d\nClientName: %s\nOutbound Channels: %s\nInbound Channels: %s\n", c.ProcessId, c.ClientName, c.OutboundChannels, c.InboundChannels)
+}
+
+func (c ConnectionInfo) String() string {
+	return c.ClientName
 }
