@@ -15,10 +15,16 @@ import (
 const (
 	SERVER_HOST = "localhost"
 	SERVER_TYPE = "tcp"
+	A = "5000"
+	B = "5001"
+	C = "5002"
+	D = "5003"
+	E = "5004"
 )
 
 var myInfo client.ClientInfo
 var serverConnection net.Conn
+var connectedClients [] client.ConnectedClient
 
 func main() {
 	processId := int64(os.Getpid())
@@ -26,13 +32,41 @@ func main() {
 	myInfo.ProcessId = processId
 
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: go run main.go [client name (A-E)] [port number] [client ports to connect to] ...")
+		// fmt.Println("Usage: go run main.go [client name (A-E)] [port number] [client ports to connect to] ...")
+		fmt.Println("Usage: go run main.go [client name (A-E)] [port number] ")
 		os.Exit(1)
 	}
 
 	myInfo.ClientName = os.Args[1]
 	port := os.Args[2]
 	// clientPorts := os.Args[3:]
+
+	if myInfo.ClientName == "A" {
+		// connectedClient1 := ConnectedClient{clientID: "B", connectionType: 3}
+		connectedClients = [] client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 3},
+													  client.ConnectedClient{ClientID: D, ConnectionType: 2}}
+						
+	} else if myInfo.ClientName == "B"{
+		connectedClients = [] client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 3}, 
+														client.ConnectedClient{ClientID: C, ConnectionType: 2},
+														client.ConnectedClient{ClientID: D, ConnectionType: 3},
+														client.ConnectedClient{ClientID: E, ConnectionType: 2}}
+	} else if myInfo.ClientName == "C"{
+		connectedClients = [] client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 1}, 
+														client.ConnectedClient{ClientID: D, ConnectionType: 2}}
+	} else if myInfo.ClientName == "D"{
+		connectedClients = [] client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 1}, 
+													client.ConnectedClient{ClientID: C, ConnectionType: 1},
+													client.ConnectedClient{ClientID: E, ConnectionType: 3}}
+	} else if myInfo.ClientName == "E"{
+		connectedClients = [] client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 1}, 
+														client.ConnectedClient{ClientID: D, ConnectionType: 3}}
+	}
+
+	for _, connectedClient := range connectedClients {
+		connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
+		fmt.Println(connecttedClientInfo)
+	}
 
 	// start server to listen to other client connections
 	go startServer(port, myInfo.ClientName)
