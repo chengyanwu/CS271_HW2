@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-
 	// "strconv"
 	"bufio"
-	"time"
-
 	// "strings"
 	// "sync"
 	client "example/users/client/client_interface"
@@ -25,7 +22,6 @@ const (
 )
 
 var myInfo client.ClientInfo
-var serverConnection net.Conn
 var connectedClients []client.ConnectedClient
 var clientPorts []string
 var port string
@@ -46,14 +42,11 @@ func main() {
 	}
 
 	myInfo.ClientName = os.Args[1]
-	// port := os.Args[2]
-	// clientPorts := os.Args[3:]
 
 	if myInfo.ClientName == "A" {
 		port = A
 		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 3},
 			client.ConnectedClient{ClientID: D, ConnectionType: 2}}
-
 	} else if myInfo.ClientName == "B" {
 		port = B
 		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 3},
@@ -68,7 +61,8 @@ func main() {
 		port = D
 		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 1},
 			client.ConnectedClient{ClientID: C, ConnectionType: 1},
-			client.ConnectedClient{ClientID: E, ConnectionType: 3}}
+			client.ConnectedClient{ClientID: E, ConnectionType: 3},
+			client.ConnectedClient{ClientID: B, ConnectionType: 3}}
 	} else if myInfo.ClientName == "E" {
 		port = E
 		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 1},
@@ -79,10 +73,10 @@ func main() {
 		if connectedClient.ConnectionType == 3 || connectedClient.ConnectionType == 1 {
 			clientPorts = append(clientPorts, connectedClient.ClientID)
 		}
-		connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
-		fmt.Println(connecttedClientInfo)
+		// connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
+		// fmt.Println(connecttedClientInfo)
 	}
-	fmt.Println("outbound to ports:")
+	fmt.Printf("Client %s is outbound to ports: ", myInfo.ClientName)
 	fmt.Println(clientPorts)
 
 	// start server to listen to other client connections
@@ -196,7 +190,7 @@ func handleError(err error, message string, connection net.Conn) {
 }
 
 func writeToConnection(connection net.Conn, message string) {
-	time.Sleep(3 * time.Second)
+	// time.Sleep(3 * time.Second)
 	_, err := connection.Write([]byte(message))
 
 	handleError(err, "Error writing.", connection)
