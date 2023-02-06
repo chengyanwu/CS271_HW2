@@ -49,7 +49,7 @@ func main() {
 	// 3) initiate token transfer process
 
 	// TODO test: print out inbound and outbound connections once all inbound connections are processed
-	fmt.Println(myInfo)
+	takeUserInput()
 }
 
 func establishClientConnections(clientPorts []string, name string) {
@@ -75,8 +75,6 @@ func establishClientConnections(clientPorts []string, name string) {
 	}
 
 	myInfo.OutboundChannels = outboundChannels
-
-	takeUserInput()
 }
 
 func takeUserInput() {
