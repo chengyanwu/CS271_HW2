@@ -6,7 +6,7 @@ import (
 	"os"
 	// "strconv"
 	"bufio"
-	// "strings"
+	"strings"
 	// "sync"
 	client "example/users/client/client_interface"
 )
@@ -23,7 +23,6 @@ const (
 
 var myInfo client.ClientInfo
 var connectedClients []client.ConnectedClient
-var clientPorts []string
 var port string
 
 func main() {
@@ -31,12 +30,7 @@ func main() {
 	fmt.Println("My process ID:", processId)
 	myInfo.ProcessId = processId
 
-	// if len(os.Args) < 4 {
-	// 	// fmt.Println("Usage: go run main.go [client name (A-E)] [port number] [client ports to connect to] ...")
-	// 	os.Exit(1)
-	// }
-
-	if len(os.Args) < 1 {
+	if len(os.Args) != 2 {
 		fmt.Println("Usage: go run main.go [client name (A-E)] ")
 		os.Exit(1)
 	}
@@ -45,39 +39,60 @@ func main() {
 
 	if myInfo.ClientName == "A" {
 		port = A
-		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 3},
-			client.ConnectedClient{ClientID: D, ConnectionType: 2}}
+		connectedClients = []client.ConnectedClient{
+			client.ConnectedClient{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
+			// client.ConnectedClient{ClientID: D, ConnectionType: client.INCOMING},
+			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
+		}
 	} else if myInfo.ClientName == "B" {
 		port = B
-		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 3},
-			client.ConnectedClient{ClientID: C, ConnectionType: 2},
-			client.ConnectedClient{ClientID: D, ConnectionType: 3},
-			client.ConnectedClient{ClientID: E, ConnectionType: 2}}
+		connectedClients = []client.ConnectedClient{
+			client.ConnectedClient{ClientID: A, ConnectionType: client.BIDIRECTIONAL},
+			// client.ConnectedClient{ClientID: C, ConnectionType: client.INCOMING},
+			client.ConnectedClient{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
+			// client.ConnectedClient{ClientID: E, ConnectionType: client.INCOMING},
+			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+		}
 	} else if myInfo.ClientName == "C" {
 		port = C
-		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 1},
-			client.ConnectedClient{ClientID: D, ConnectionType: 2}}
+		connectedClients = []client.ConnectedClient{
+			client.ConnectedClient{ClientID: B, ConnectionType: client.OUTGOING},
+			// client.ConnectedClient{ClientID: D, ConnectionType: client.INCOMING},
+			client.ConnectedClient{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
+		}
 	} else if myInfo.ClientName == "D" {
 		port = D
-		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: A, ConnectionType: 1},
-			client.ConnectedClient{ClientID: C, ConnectionType: 1},
-			client.ConnectedClient{ClientID: E, ConnectionType: 3},
-			client.ConnectedClient{ClientID: B, ConnectionType: 3}}
+		connectedClients = []client.ConnectedClient{
+			client.ConnectedClient{ClientID: A, ConnectionType: client.OUTGOING},
+			client.ConnectedClient{ClientID: C, ConnectionType: client.OUTGOING},
+			client.ConnectedClient{ClientID: E, ConnectionType: client.BIDIRECTIONAL},
+			client.ConnectedClient{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
+		}
 	} else if myInfo.ClientName == "E" {
 		port = E
-		connectedClients = []client.ConnectedClient{client.ConnectedClient{ClientID: B, ConnectionType: 1},
-			client.ConnectedClient{ClientID: D, ConnectionType: 3}}
+		connectedClients = []client.ConnectedClient{
+			client.ConnectedClient{ClientID: B, ConnectionType: client.OUTGOING},
+			client.ConnectedClient{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
+			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			client.ConnectedClient{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
+		}
 	}
 
-	for _, connectedClient := range connectedClients {
-		if connectedClient.ConnectionType == 3 || connectedClient.ConnectionType == 1 {
-			clientPorts = append(clientPorts, connectedClient.ClientID)
-		}
+	// for _, connectedClient := range connectedClients {
+		// if connectedClient.ConnectionType == 3 || connectedClient.ConnectionType == 1 {
+			// clientPorts = append(clientPorts, connectedClient.ClientID)
+		// }
 		// connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
 		// fmt.Println(connecttedClientInfo)
-	}
-	fmt.Printf("Client %s is outbound to ports: ", myInfo.ClientName)
-	fmt.Println(clientPorts)
+	// }
+
+	// fmt.Printf("Client %s is outbound to ports: ", myInfo.ClientName)
+	// fmt.Println(clientPorts)
 
 	// start server to listen to other client connections
 	go startServer(port, myInfo.ClientName)
@@ -87,7 +102,7 @@ func main() {
 	fmt.Scanln()
 
 	// TODO: establish outbound client connections
-	establishClientConnections(clientPorts, myInfo.ClientName)
+	establishClientConnections(connectedClients, myInfo.ClientName)
 
 	// TODO handle user input:
 	// 1) request snapshot using Chandy-Lamport
@@ -98,25 +113,31 @@ func main() {
 	takeUserInput()
 }
 
-func establishClientConnections(clientPorts []string, name string) {
+func establishClientConnections(clientPorts []client.ConnectedClient, name string) {
 	var outboundChannels []client.ConnectionInfo
 
-	for _, port := range clientPorts {
-		connection, err := net.Dial(SERVER_TYPE, SERVER_HOST+":"+port)
-
-		handleError(err, fmt.Sprintf("Couldn't connect to client's server with port: %s\n", port), connection)
-		// PROTOCOL: receive name from connection
-		clientName, err := bufio.NewReader(connection).ReadBytes('\n')
-		handleError(err, fmt.Sprintf("Didn't receive client's server's response on port: %s\n", port), connection)
-
-		connInfo := client.ConnectionInfo{connection, string(clientName[:len(clientName)-1])}
-		fmt.Println("Successfully established outbound channel to client with name:", connInfo.ClientName)
-
-		outboundChannels = append(outboundChannels, connInfo)
-
-		// PROTOCOL: send self name to connection
-		writeToConnection(connection, name+"\n")
-
+	// loop through client connections
+	for _, clientConnection := range clientPorts {
+		connection, err := net.Dial(SERVER_TYPE, SERVER_HOST+":"+clientConnection.ClientID)
+		
+		if clientConnection.ConnectionType == client.BIDIRECTIONAL || clientConnection.ConnectionType == client.OUTGOING || clientConnection.ConnectionType == client.SNAPSHOTONLY {
+			handleError(err, fmt.Sprintf("Couldn't connect to client's server with port: %s\n", port), connection)
+			// PROTOCOL: receive name from connection
+			clientName, err := bufio.NewReader(connection).ReadBytes('\n')
+			handleError(err, fmt.Sprintf("Didn't receive client's server's response on port: %s\n", port), connection)
+	
+			connInfo := client.ConnectionInfo{connection, string(clientName[:len(clientName)-1]), clientConnection.ConnectionType}
+			fmt.Println("Successfully established outbound channel to client with name:", connInfo.ClientName)
+	
+			outboundChannels = append(outboundChannels, connInfo)
+	
+			// PROTOCOL: send self name to connection, along with indicator if the channel is solely for sending local state
+			if clientConnection.ConnectionType == client.SNAPSHOTONLY {
+				writeToConnection(connection, name+":"+"snapshot_only"+"\n")
+			} else {
+				writeToConnection(connection, name+"\n")
+			}
+		}
 		// TODO: handle outbound channels
 	}
 
@@ -135,7 +156,7 @@ func takeUserInput() {
 		} else if action == "p" {
 			fmt.Println(myInfo)
 		} else {
-			fmt.Println(action)
+			fmt.Println("Invalid action:", action)
 		}
 	}
 }
@@ -161,18 +182,22 @@ func startServer(port string, name string) {
 
 		// PROTOCOL: receive inbound client name
 		clientName, err := bufio.NewReader(inboundChannel).ReadBytes('\n')
-
 		handleError(err, "Didn't receive connected client's name.", inboundChannel)
 
-		// handle inbound channel
-		go processInboundChannel(inboundChannel, string(clientName[:len(clientName)-1]))
+		nameSlice := strings.Split(string(clientName[:len(clientName) - 1]), ":")
+
+		if len(nameSlice) == 1 {
+			go processInboundChannel(inboundChannel, nameSlice[0], client.INCOMING)
+		} else {
+			go processInboundChannel(inboundChannel, nameSlice[0], client.SNAPSHOTONLY)
+		}
 	}
 }
 
 // TODO: handle inbound channel connection
-func processInboundChannel(connection net.Conn, clientName string) {
+func processInboundChannel(connection net.Conn, clientName string, connectionType client.ConnectionType) {
 	fmt.Printf("Inbound client %s connected\n", clientName)
-	inboundChannelInfo := client.ConnectionInfo{connection, clientName}
+	inboundChannelInfo := client.ConnectionInfo{connection, clientName, connectionType}
 
 	// add new connection to self data structure
 	myInfo.InboundChannels = append(myInfo.InboundChannels, inboundChannelInfo)
