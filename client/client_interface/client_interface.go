@@ -17,6 +17,12 @@ type ConnectionInfo struct {
 	ClientName string
 }
 
+// connectionType: 1: outgoing 2: incoming 3: bi-directional
+type ConnectedClient struct {
+	ClientID string
+	ConnectionType int64
+}
+
 func (c ClientInfo) String() string {
 	// TODO
 	return fmt.Sprintf("\n===== Client Info =====\nProcessID: %d\nClientName: %s\nOutbound Channels: %s\nInbound Channels: %s\n", c.ProcessId, c.ClientName, c.OutboundChannels, c.InboundChannels)
