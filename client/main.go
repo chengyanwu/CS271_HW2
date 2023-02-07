@@ -5,10 +5,12 @@ import (
 	"net"
 	"os"
 	"time"
+
 	// "strconv"
-	"math/rand"
 	"bufio"
+	"math/rand"
 	"strings"
+
 	// "sync"
 	client "example/users/client/client_interface"
 )
@@ -16,11 +18,16 @@ import (
 const (
 	SERVER_HOST = "localhost"
 	SERVER_TYPE = "tcp"
-	A           = "5000"
-	B           = "5001"
-	C           = "5002"
-	D           = "5003"
-	E           = "5004"
+	// A           = "5000"
+	// B           = "5001"
+	// C           = "5002"
+	// D           = "5003"
+	// E           = "5004"
+	A = "6000"
+	B = "6001"
+	C = "6002"
+	D = "6003"
+	E = "6004"
 )
 
 var myInfo client.ClientInfo
@@ -90,11 +97,11 @@ func main() {
 	}
 
 	// for _, connectedClient := range connectedClients {
-		// if connectedClient.ConnectionType == 3 || connectedClient.ConnectionType == 1 {
-			// clientPorts = append(clientPorts, connectedClient.ClientID)
-		// }
-		// connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
-		// fmt.Println(connecttedClientInfo)
+	// if connectedClient.ConnectionType == 3 || connectedClient.ConnectionType == 1 {
+	// clientPorts = append(clientPorts, connectedClient.ClientID)
+	// }
+	// connecttedClientInfo := fmt.Sprintf("Client %s: Connection Type: %d", connectedClient.ClientID, connectedClient.ConnectionType)
+	// fmt.Println(connecttedClientInfo)
 	// }
 
 	// fmt.Printf("Client %s is outbound to ports: ", myInfo.ClientName)
@@ -127,23 +134,23 @@ func establishClientConnections(clientPorts []client.ConnectedClient, name strin
 	// loop through client connections
 	for _, clientConnection := range clientPorts {
 		connection, err := net.Dial(SERVER_TYPE, SERVER_HOST+":"+clientConnection.ClientID)
-		
+
 		if clientConnection.ConnectionType == client.BIDIRECTIONAL || clientConnection.ConnectionType == client.OUTGOING || clientConnection.ConnectionType == client.SNAPSHOTONLY {
 			handleError(err, fmt.Sprintf("Couldn't connect to client's server with port: %s\n", port), connection)
-			
+
 			// PROTOCOL: receive name from connection
 			clientName, err := bufio.NewReader(connection).ReadBytes('\n')
 			handleError(err, fmt.Sprintf("Didn't receive client's server's response on port: %s\n", port), connection)
-	
-			connInfo := client.ConnectionInfo{connection, string(clientName[:len(clientName)-1]), clientConnection.ConnectionType}
+
+			connInfo := client.ConnectionInfo{connection, string(clientName[:len(clientName)-1]), clientConnection.ConnectionType, 1, []string{}}
 			fmt.Println("Successfully established outbound channel to client with name:", connInfo.ClientName)
-			
+
 			if clientConnection.ConnectionType != client.SNAPSHOTONLY {
 				tokenChannels = append(tokenChannels, connInfo)
 			}
-			
+
 			outboundChannels = append(outboundChannels, connInfo)
-			
+
 			// PROTOCOL: send self name to connection, along with indicator if the channel is solely for sending local state
 			if clientConnection.ConnectionType == client.SNAPSHOTONLY {
 				writeToConnection(connection, name+":"+"snapshot_only"+"\n")
@@ -186,6 +193,7 @@ func takeUserInput() {
 			startTokenPassing() // list some tokens
 		} else if action == "s" {
 			// TODO: Ian
+			startSnapShot()
 		} else {
 			fmt.Println("Invalid action:", action)
 		}
@@ -197,13 +205,30 @@ func startTokenPassing() {
 	// pick random outbound channel
 	randomIndex := r.Intn(len(myInfo.TokenOutChannels))
 	randomChannel := myInfo.TokenOutChannels[randomIndex]
-	
+
 	// pass token to random channel
 	myInfo.Token = false
 
 	// PROTOCOL: [TOKEN]
 	writeToConnection(randomChannel.Connection, "TOKEN\n")
 	fmt.Println("Passing token to client", randomChannel.ClientName)
+}
+
+func startSnapShot() {
+	// record its own local state
+
+	// send marker message (Initialtor Sender MARKER) on all outgoing channels
+	markerMessage := myInfo.ClientName + " " + myInfo.ClientName + " MARKER\n"
+	for _, channel := range myInfo.OutboundChannels {
+		if channel.ConnectionType == client.OUTGOING || channel.ConnectionType == client.BIDIRECTIONAL {
+			writeToConnection(channel.Connection, markerMessage)
+			fmt.Println("Markers sent to: ", channel.ClientName)
+		}
+
+	}
+
+	// TODO: record incoming messages from all incoming channels
+
 }
 
 func startServer(port string, name string) {
@@ -229,7 +254,7 @@ func startServer(port string, name string) {
 		clientName, err := bufio.NewReader(inboundChannel).ReadBytes('\n')
 		handleError(err, "Didn't receive connected client's name.", inboundChannel)
 
-		nameSlice := strings.Split(string(clientName[:len(clientName) - 1]), ":")
+		nameSlice := strings.Split(string(clientName[:len(clientName)-1]), ":")
 
 		if len(nameSlice) == 1 {
 			go processInboundChannel(inboundChannel, nameSlice[0], client.INCOMING)
@@ -242,30 +267,27 @@ func startServer(port string, name string) {
 // TODO: Handle inbound channel connection
 func processInboundChannel(connection net.Conn, clientName string, connectionType client.ConnectionType) {
 	fmt.Printf("Inbound client %s connected\n", clientName)
-	inboundChannelInfo := client.ConnectionInfo{connection, clientName, connectionType}
+	inboundChannelInfo := client.ConnectionInfo{connection, clientName, connectionType, 1, []string{}}
 
 	// Add new connection to self data structure
 	myInfo.InboundChannels = append(myInfo.InboundChannels, inboundChannelInfo)
 
-	// Case 1: receive TOKEN
-	// 1) Wait 3 seconds after receive
-	// 2) Calculate chances of losing token
-	// 3) Either lose token or pass it on to a random outbound channel for the current process after waiting 1 second - create a new goroutine for this lol
-
-	// Case 2: receive MARKER
-
-	// Case 3: receive local snapshot
 	for {
 		action, err := bufio.NewReader(connection).ReadBytes('\n')
 
 		handleError(err, fmt.Sprintf("Error receiving TOKEN or MARKER from client %s", clientName), connection)
-		time.Sleep(3 * time.Second)
 
-		actionInfoSlice := strings.Split(string(action[:len(action) - 1]), ":")
-		
+		actionInfoSlice := strings.Split(string(action[:len(action)-1]), " ")
+		fmt.Println(actionInfoSlice)
+
+		// Case 1: receive TOKEN
+		// 1) Wait 3 seconds after receive
+		// 2) Calculate chances of losing token
+		// 3) Either lose token or pass it on to a random outbound channel for the current process after waiting 1 second - create a new goroutine for this lol
 		if actionInfoSlice[0] == "TOKEN" {
 			fmt.Println("Received TOKEN from client", clientName)
-			
+			time.Sleep(3 * time.Second)
+
 			myInfo.Token = true
 			// lose token here
 			if uint(r.Intn(100)) < myInfo.LoseChance {
@@ -274,7 +296,27 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			} else {
 				go startTokenPassing()
 			}
+
+			// Case 2: receive MARKER
+		} else if actionInfoSlice[2] == "MARKER" {
+			fmt.Println("Received MARKER from client", clientName)
+
+			// receive MARKER for the first time, mark channel empty and sends MARKER to all outbound channels
+			if checkChannelActive(myInfo.ClientName) == true {
+				markChannelEmpty(myInfo.ClientName)
+				markerMessage := actionInfoSlice[0] + " " + myInfo.ClientName + " MARKER\n"
+				for _, channel := range myInfo.OutboundChannels {
+					if channel.ConnectionType == client.OUTGOING || channel.ConnectionType == client.BIDIRECTIONAL {
+						writeToConnection(channel.Connection, markerMessage)
+						fmt.Println("Markers sent to: ", channel.ClientName)
+					}
+				}
+			}
+
+			// TODO: Waiting
+
 		}
+		// TODO: Case 3: receive local snapshot
 	}
 }
 
@@ -292,4 +334,27 @@ func writeToConnection(connection net.Conn, message string) {
 	_, err := connection.Write([]byte(message))
 
 	handleError(err, "Error writing.", connection)
+}
+
+func markChannelEmpty(clientName string) {
+	for _, channel := range myInfo.InboundChannels {
+		if channel.ClientName == clientName {
+			// mark channel as empty
+			channel.State = 0
+			fmt.Printf("Inbound Channel %s Marked as Empty", channel.ClientName)
+		}
+
+	}
+}
+
+func checkChannelActive(clientName string) bool {
+	for _, channel := range myInfo.InboundChannels {
+		if channel.ClientName == clientName {
+			if channel.State == 0 {
+				return false
+			}
+		}
+
+	}
+	return true
 }
