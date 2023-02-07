@@ -17,9 +17,11 @@ const (
 type ClientInfo struct {
 	ProcessId int64 // process ID identifier
 	ClientName string // name identifier
-	OutboundChannels []ConnectionInfo // connections to other clients for purposes of token passing and snapshot algorithm
+	OutboundChannels []ConnectionInfo // all outbound channels
 	InboundChannels []ConnectionInfo // connections from other clients to self
-	ConsolidateChannels []ConnectionInfo // channels used to send local state to initiator
+	TokenOutChannels []ConnectionInfo // for purposes for token passing and snapshot algorithm
+	LoseChance uint // chance to lose the token after receiving it
+	Token bool // false
 }
 
 type ConnectionInfo struct {
@@ -34,7 +36,7 @@ type ConnectedClient struct {
 }
 
 func (c ClientInfo) String() string {
-	return fmt.Sprintf("\n===== Client Info =====\nProcessID: %d\nClientName: %s\nOutbound Channels: %s\nInbound Channels: %s\n", c.ProcessId, c.ClientName, c.OutboundChannels, c.InboundChannels)
+	return fmt.Sprintf("\n===== Client Info =====\nProcessID: %d\nClientName: %s\nOutbound Channels: %s\nInbound Channels: %s\nToken/Marker Channels: %s\nLose Chance: %d\n", c.ProcessId, c.ClientName, c.OutboundChannels, c.InboundChannels, c.TokenOutChannels, c.LoseChance)
 }
 
 func (c ConnectionInfo) String() string {
