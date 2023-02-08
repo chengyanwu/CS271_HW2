@@ -46,46 +46,42 @@ func main() {
 	if myInfo.ClientName == "A" {
 		port = A
 		connectedClients = []client.ConnectedClient{
-			client.ConnectedClient{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
-			// client.ConnectedClient{ClientID: D, ConnectionType: client.INCOMING},
-			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
 		}
 	} else if myInfo.ClientName == "B" {
 		port = B
 		connectedClients = []client.ConnectedClient{
-			client.ConnectedClient{ClientID: A, ConnectionType: client.BIDIRECTIONAL},
-			// client.ConnectedClient{ClientID: C, ConnectionType: client.INCOMING},
-			client.ConnectedClient{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
-			// client.ConnectedClient{ClientID: E, ConnectionType: client.INCOMING},
-			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: A, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
 		}
 	} else if myInfo.ClientName == "C" {
 		port = C
 		connectedClients = []client.ConnectedClient{
-			client.ConnectedClient{ClientID: B, ConnectionType: client.OUTGOING},
-			// client.ConnectedClient{ClientID: D, ConnectionType: client.INCOMING},
-			client.ConnectedClient{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: B, ConnectionType: client.OUTGOING},
+			{ClientID: D, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: E, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
 		}
 	} else if myInfo.ClientName == "D" {
 		port = D
 		connectedClients = []client.ConnectedClient{
-			client.ConnectedClient{ClientID: A, ConnectionType: client.OUTGOING},
-			client.ConnectedClient{ClientID: C, ConnectionType: client.OUTGOING},
-			client.ConnectedClient{ClientID: E, ConnectionType: client.BIDIRECTIONAL},
-			client.ConnectedClient{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: A, ConnectionType: client.OUTGOING},
+			{ClientID: C, ConnectionType: client.OUTGOING},
+			{ClientID: E, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: B, ConnectionType: client.BIDIRECTIONAL},
 		}
 	} else if myInfo.ClientName == "E" {
 		port = E
 		connectedClients = []client.ConnectedClient{
-			client.ConnectedClient{ClientID: B, ConnectionType: client.OUTGOING},
-			client.ConnectedClient{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
-			client.ConnectedClient{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
-			client.ConnectedClient{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: B, ConnectionType: client.OUTGOING},
+			{ClientID: D, ConnectionType: client.BIDIRECTIONAL},
+			{ClientID: C, ConnectionType: client.SNAPSHOTONLY},
+			{ClientID: A, ConnectionType: client.SNAPSHOTONLY},
 		}
 	}
 
@@ -110,12 +106,7 @@ func main() {
 	// TODO: establish outbound client connections
 	establishClientConnections(connectedClients, myInfo.ClientName)
 
-	// TODO handle user input
 	// 1) request snapshot using Chandy-Lamport
-	// 2) set loss probability
-	// 3) initiate token transfer process
-
-	// TODO test: print out inbound and outbound connections once all inbound connections are processed
 	takeUserInput()
 }
 
