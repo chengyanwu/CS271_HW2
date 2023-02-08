@@ -1,37 +1,39 @@
 package client
 
 import (
-	"net"
 	"fmt"
+	"net"
 )
 
 type ConnectionType int64
 
 const (
-	OUTGOING ConnectionType        = 0
-	INCOMING ConnectionType        = 1
-	BIDIRECTIONAL ConnectionType   = 2
-	SNAPSHOTONLY ConnectionType    = 3
+	OUTGOING      ConnectionType = 0
+	INCOMING      ConnectionType = 1
+	BIDIRECTIONAL ConnectionType = 2
+	SNAPSHOTONLY  ConnectionType = 3
 )
 
 type ClientInfo struct {
-	ProcessId int64 // process ID identifier
-	ClientName string // name identifier
+	ProcessId        int64            // process ID identifier
+	ClientName       string           // name identifier
 	OutboundChannels []ConnectionInfo // all outbound channels
-	InboundChannels []ConnectionInfo // connections from other clients to self
+	InboundChannels  []ConnectionInfo // connections from other clients to self
 	TokenOutChannels []ConnectionInfo // for purposes for token passing and snapshot algorithm
-	LoseChance uint // chance to lose the token after receiving it
-	Token bool // false
+	LoseChance       uint             // chance to lose the token after receiving it
+	Token            bool             // false
 }
 
 type ConnectionInfo struct {
-	Connection net.Conn
-	ClientName string
-	ConnectionType ConnectionType
+	Connection        net.Conn
+	ClientName        string
+	ConnectionType    ConnectionType
+	State             int64 // state of channel: /0:empty /1:active
+	IncommingMessages []string
 }
 
 type ConnectedClient struct {
-	ClientID string
+	ClientID       string
 	ConnectionType ConnectionType
 }
 
