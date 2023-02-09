@@ -29,7 +29,7 @@ type ClientInfo struct {
 
 type ConnectionInfo struct {
 	Connection       net.Conn
-	ClientName       string
+	ClientName       string         // client name on the other end of the connection
 	ConnectionType   ConnectionType
 	Recording        bool           // state of channel: defaults to true, set to false when P receives a MARKER for the first time over the channel
 	IncomingMessages []Message      // messages on the incoming channel for the purposes of TOKEN passing, should be emptied when snapshot terminates
@@ -38,7 +38,8 @@ type ConnectionInfo struct {
 // incoming messages on the channel when snapshot is initiated
 type Message struct {
 	SenderName   string
-	ReceiverName string
+	Message      string
+	// ReceiverName string
 }
 
 type ConnectedClient struct {
