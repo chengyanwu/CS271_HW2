@@ -323,21 +323,19 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			}
 			// add mutex lock
 			counter += 1
-			fmt.Println("Received:", actionInfoSlice)
+			// fmt.Println("Received:", actionInfoSlice)
+			fmt.Printf("Received new SNAPSHOT from client %s with state %s\n", clientName, actionInfoSlice[1])
 
 			var message string
 			if len(actionInfoSlice) >= 3 {
 				// slice := strings.Split(string(actionInfoSlice[2][:len(actionInfoSlice[2])-1]), " ")
-				senderName := actionInfoSlice[2]
-				message = clientName + ": " + actionInfoSlice[1] + ", Receiving Token From " + senderName
+				senderName := string(actionInfoSlice[2][0])
+				message = clientName + ": " + actionInfoSlice[1] + ", Receiving Token From " + senderName + "\n"
 			} else {
-				message = clientName + ": " + actionInfoSlice[1]
+				message = clientName + ": " + actionInfoSlice[1] + "\n"
 			}
 
 			globalSnapShot = append(globalSnapShot, message)
-
-			fmt.Println("Received new SNAPSHOT from client", clientName)
-			fmt.Println("Local state:", actionInfoSlice[1])
 
 			if counter == 4 {
 				counter = 0
