@@ -314,11 +314,11 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 
 			counter += 1
 
-			message := clientName + ": " + actionInfoSlice[1]
+			message := clientName + ": " + actionInfoSlice[2]
 			globalSnapShot = append(globalSnapShot, message)
 
 			fmt.Println("Received new SNAPSHOT from client", clientName)
-			fmt.Println("Local state:", actionInfoSlice[1])
+			fmt.Println("Local state:", actionInfoSlice[2])
 
 			if counter == 4 {
 				counter = 0
@@ -356,7 +356,7 @@ func snapshotTermination() {
 		} else {
 			myInfo.Recording = false
 
-			snapshotInfo = fmt.Appendf(snapshotInfo, ":%v", myInfo.TokenForSnapshot)
+			snapshotInfo = fmt.Appendf(snapshotInfo, ": %v", myInfo.TokenForSnapshot)
 			for _, inboundChannel := range myInfo.InboundChannels {
 				if inboundChannel.ConnectionType == client.INCOMING {
 					inboundChannel.Recording = true
