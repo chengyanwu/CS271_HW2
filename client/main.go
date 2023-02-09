@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	// "strconv"
 	"bufio"
 	"math/rand"
+	"strconv"
 	"strings"
 
 	// "sync"
@@ -18,7 +18,7 @@ import (
 const (
 	SERVER_HOST = "localhost"
 	SERVER_TYPE = "tcp"
-	
+
 	A = "6000"
 	B = "6001"
 	C = "6002"
@@ -29,12 +29,15 @@ const (
 var myInfo client.ClientInfo
 var connectedClients []client.ConnectedClient
 var port string
-var generator = rand.NewSource(myInfo.ProcessId)
+var generator rand.Source
 var r = rand.New(generator)
 var snapshotString string // TODO: very important - consolidate messages to initiator here
+var counter = 0
+var globalSnapShot []string
 
 func main() {
 	processId := int64(os.Getpid())
+	generator = rand.NewSource(processId)
 	fmt.Println("My process ID:", processId)
 	myInfo.ProcessId = processId
 
@@ -200,7 +203,7 @@ func startSnapShot(initiator string) {
 
 	// send marker message (Initiator Sends MARKER) on all outgoing channels
 	// PROTOCOL: [MARKER, initiator]
-	markerMessage := "MARKER:" + initiator + "\n"
+	markerMessage := "MARKER: " + initiator + "\n"
 	for _, channel := range myInfo.TokenOutChannels {
 		writeToConnection(channel.Connection, markerMessage)
 		fmt.Println("Snapshot in progress: Sending MARKER to client", channel.ClientName)
@@ -276,8 +279,8 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				go startTokenPassing()
 			}
 
-		// Case 2: receive MARKER
-		} else if actionInfoSlice[0] == "MARKER" {
+			// Case 2: receive MARKER
+		} else if actionInfoSlice[0] == "MARKER:" {
 			// Scenario 1: receive MARKER for the first time, mark channel empty and sends MARKER to all outbound channels
 			if !myInfo.Recording {
 				inboundChannelInfo.Recording = false
@@ -295,7 +298,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				myInfo.TokenForSnapshot = myInfo.Token
 				go startSnapShot(myInfo.Initiator)
 				myInfo.Recording = true
-			// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
+				// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
 			} else {
 				fmt.Println("Snapshot in progress: Received MARKER from client", clientName)
 				// stop recording - channel state is finalized
@@ -309,8 +312,24 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
 			}
 
+			counter += 1
+
+			message := clientName + ": " + actionInfoSlice[1]
+			globalSnapShot = append(globalSnapShot, message)
+
 			fmt.Println("Received new SNAPSHOT from client", clientName)
 			fmt.Println("Local state:", actionInfoSlice[1])
+
+			if counter == 4 {
+				counter = 0
+				fmt.Println("Snaptshot Completed")
+				message := myInfo.ClientName + ": " + strconv.FormatBool(myInfo.TokenForSnapshot)
+				globalSnapShot = append(globalSnapShot, message)
+				fmt.Println("Global Snapshot: ", globalSnapShot)
+				globalSnapShot = nil
+
+			}
+
 		}
 
 		// TODO: Case 3: receive local snapshot (don't need to sleep), panic if initiator of the client received isn't self
@@ -330,13 +349,13 @@ func snapshotTermination() {
 	}
 
 	// PROTOCOL: [SNAPSHOT:TOKEN STATE:SENDER,MESSAGE:SENDER,MESSAGE:...]
-	var snapshotInfo = []byte("SNAPSHOT")
+	var snapshotInfo = []byte("SNAPSHOT ")
 	if snapshotComplete {
 		if !myInfo.Recording {
 			panic("Snapshot can't be complete if process hasn't started recording channel information.")
 		} else {
 			myInfo.Recording = false
-			
+
 			snapshotInfo = fmt.Appendf(snapshotInfo, ":%v", myInfo.TokenForSnapshot)
 			for _, inboundChannel := range myInfo.InboundChannels {
 				if inboundChannel.ConnectionType == client.INCOMING {
@@ -345,7 +364,7 @@ func snapshotTermination() {
 					for _, message := range inboundChannel.IncomingMessages {
 						snapshotInfo = fmt.Appendf(snapshotInfo, ":%s,%s", message.SenderName, message.Message)
 					}
-					
+
 					// clear incoming messages from channel
 					inboundChannel.IncomingMessages = []client.Message{}
 				}
@@ -357,6 +376,7 @@ func snapshotTermination() {
 				for _, channel := range myInfo.OutboundChannels {
 					if myInfo.Initiator == channel.ClientName {
 						writeToConnection(channel.Connection, string(snapshotInfo))
+						fmt.Println("Sending SnapshotInfo: ", string(snapshotInfo))
 						break
 					}
 				}
