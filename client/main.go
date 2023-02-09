@@ -30,7 +30,7 @@ var myInfo client.ClientInfo
 var connectedClients []client.ConnectedClient
 var port string
 var generator rand.Source
-var r = rand.New(generator)
+var r *rand.Rand
 var snapshotString string // TODO: very important - consolidate messages to initiator here
 var counter = 0
 var globalSnapShot []string
@@ -38,6 +38,7 @@ var globalSnapShot []string
 func main() {
 	processId := int64(os.Getpid())
 	generator = rand.NewSource(processId)
+	r = rand.New(generator)
 	fmt.Println("My process ID:", processId)
 	myInfo.ProcessId = processId
 
