@@ -31,7 +31,6 @@ var connectedClients []client.ConnectedClient
 var port string
 var generator rand.Source
 var r *rand.Rand
-var snapshotString string // TODO: very important - consolidate messages to initiator here
 var counter = 0
 var globalSnapShot []string
 
@@ -194,17 +193,15 @@ func startTokenPassing() {
 	// pass token to random channel
 	myInfo.Token = false
 
-	// PROTOCOL: [TOKEN, initiator name]
+	// PROTOCOL: [TOKEN]
 	writeToConnection(randomChannel.Connection, "TOKEN\n")
 	fmt.Println("Passing TOKEN to client", randomChannel.ClientName)
 }
 
 func startSnapShot(initiator string) {
-	// record its own local state
-
 	// send marker message (Initiator Sends MARKER) on all outgoing channels
-	// PROTOCOL: [MARKER, initiator]
-	markerMessage := "MARKER: " + initiator + "\n"
+	// PROTOCOL: [MARKER initiator]
+	markerMessage := "MARKER " + initiator + "\n"
 	for _, channel := range myInfo.TokenOutChannels {
 		writeToConnection(channel.Connection, markerMessage)
 		fmt.Println("Snapshot in progress: Sending MARKER to client", channel.ClientName)
@@ -244,6 +241,58 @@ func startServer(port string, name string) {
 	}
 }
 
+func handleTOKEN(clientName string, inboundChannelInfo *client.ConnectionInfo) {
+	time.Sleep(3 * time.Second)
+	// TODO: make this a separate goroutine
+	fmt.Println("Received TOKEN from client", clientName)
+
+	// save TOKEN message on channel if channel is recording
+	if myInfo.Recording && inboundChannelInfo.Recording {
+		fmt.Println("Snapshot in progress: Recording TOKEN message from client", clientName)
+		inboundChannelInfo.IncomingMessages = append(inboundChannelInfo.IncomingMessages, client.Message{clientName, "TOKEN"})
+	}
+
+	myInfo.Token = true
+	// lose token
+	if uint(r.Intn(100)) < myInfo.LoseChance {
+		fmt.Println("TOKEN lost")
+		myInfo.Token = false
+	} else {
+		startTokenPassing()
+	}
+}
+
+func handleMARKER(clientName string, inboundChannelInfo *client.ConnectionInfo, actionInfoSlice []string) {
+	time.Sleep(3 * time.Second)
+
+	// Scenario 1: receive MARKER for the first time, mark channel empty and sends MARKER to all outbound channels
+	if !myInfo.Recording {
+		myInfo.Recording = true
+		inboundChannelInfo.Recording = false
+		myInfo.Initiator = actionInfoSlice[1]
+		fmt.Printf("Snapshot starting: Received MARKER from %s with initiator client %s\n", clientName, myInfo.Initiator)
+		// myInfo.TokenForSnapshot = myInfo.Token
+
+		// markerMessage := "MARKER\n"
+		// for _, channel := range myInfo.OutboundChannels {
+		// 	if channel.ConnectionType == client.OUTGOING || channel.ConnectionType == client.BIDIRECTIONAL {
+		// 		writeToConnection(channel.Connection, markerMessage)
+		// 		fmt.Println("Markers sent to:", channel.ClientName)
+		// 	}
+		// }
+		myInfo.TokenForSnapshot = myInfo.Token
+		go startSnapShot(myInfo.Initiator)
+	// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
+	} else {
+		fmt.Println("Snapshot in progress: Received MARKER from client", clientName)
+		// stop recording - channel state is finalized
+		inboundChannelInfo.Recording = false
+	}
+
+	// check if MARKERS have been received on all incoming channels, and send messages to initiator if true
+	snapshotTermination()
+}
+
 // Handle inbound channel connection
 func processInboundChannel(connection net.Conn, clientName string, connectionType client.ConnectionType) {
 	fmt.Printf("Inbound client %s connected\n", clientName)
@@ -254,65 +303,25 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 
 	for {
 		action, err := bufio.NewReader(connection).ReadBytes('\n')
-		handleError(err, fmt.Sprintf("Error receiving TOKEN or MARKER from client %s", clientName), connection)
+		handleError(err, fmt.Sprintf("Error receiving TOKEN, MARKER, or SNAPSHOT from client %s", clientName), connection)
 
 		actionInfoSlice := strings.Split(string(action[:len(action)-1]), " ")
-		time.Sleep(3 * time.Second)
 
 		// Case 1: receive TOKEN
 		// 1) Calculate chances of losing token
 		// 2) Either lose token or pass it on to a random outbound channel for the current process after waiting 1 second - create a new goroutine for this lol
 		if actionInfoSlice[0] == "TOKEN" {
-			fmt.Println("Received TOKEN from client", clientName)
-
-			// save TOKEN message on channel if channel is recording
-			if myInfo.Recording && inboundChannelInfo.Recording {
-				fmt.Println("Snapshot in progress: Recording TOKEN message from client", clientName)
-				inboundChannelInfo.IncomingMessages = append(inboundChannelInfo.IncomingMessages, client.Message{clientName, "TOKEN"})
-			}
-
-			myInfo.Token = true
-			// lose token
-			if uint(r.Intn(100)) < myInfo.LoseChance {
-				fmt.Println("TOKEN lost")
-				myInfo.Token = false
-			} else {
-				go startTokenPassing()
-			}
+			go handleTOKEN(clientName, &inboundChannelInfo)
 
 			// Case 2: receive MARKER
-		} else if actionInfoSlice[0] == "MARKER:" {
-			// Scenario 1: receive MARKER for the first time, mark channel empty and sends MARKER to all outbound channels
-			if !myInfo.Recording {
-				inboundChannelInfo.Recording = false
-				myInfo.Initiator = actionInfoSlice[1]
-				fmt.Printf("Snapshot starting: Received MARKER from initiator client %s\n", myInfo.Initiator)
-				// myInfo.TokenForSnapshot = myInfo.Token
-
-				// markerMessage := "MARKER\n"
-				// for _, channel := range myInfo.OutboundChannels {
-				// 	if channel.ConnectionType == client.OUTGOING || channel.ConnectionType == client.BIDIRECTIONAL {
-				// 		writeToConnection(channel.Connection, markerMessage)
-				// 		fmt.Println("Markers sent to:", channel.ClientName)
-				// 	}
-				// }
-				myInfo.TokenForSnapshot = myInfo.Token
-				go startSnapShot(myInfo.Initiator)
-				myInfo.Recording = true
-				// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
-			} else {
-				fmt.Println("Snapshot in progress: Received MARKER from client", clientName)
-				// stop recording - channel state is finalized
-				inboundChannelInfo.Recording = false
-			}
-
-			// check if MARKERS have been received on all incoming channels, and send messages to initiator if true
-			go snapshotTermination()
+		} else if actionInfoSlice[0] == "MARKER" {
+			go handleMARKER(clientName, &inboundChannelInfo, actionInfoSlice)
+			
 		} else if actionInfoSlice[0] == "SNAPSHOT" {
 			if myInfo.Initiator != myInfo.ClientName {
 				panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
 			}
-
+			// add mutex lock
 			counter += 1
 			fmt.Println("Received:", actionInfoSlice)
 
@@ -337,11 +346,8 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				globalSnapShot = append(globalSnapShot, message)
 				fmt.Println("Global Snapshot: ", globalSnapShot)
 				globalSnapShot = nil
-
 			}
-
 		}
-
 		// TODO: Case 3: receive local snapshot (don't need to sleep), panic if initiator of the client received isn't self
 	}
 }
@@ -354,6 +360,7 @@ func snapshotTermination() {
 	for _, inboundChannel := range myInfo.InboundChannels {
 		// if channel is still recording, that means it is still waiting for MARKER message
 		if inboundChannel.ConnectionType == client.INCOMING && inboundChannel.Recording {
+			fmt.Printf("Channel from %s is still waiting for MARKER\n", inboundChannel.ClientName)
 			snapshotComplete = false
 		}
 	}
@@ -361,6 +368,7 @@ func snapshotTermination() {
 	// PROTOCOL: [SNAPSHOT TOKEN[true/false] SENDER,MESSAGE SENDER,MESSAGE:...]
 	var snapshotInfo = []byte("SNAPSHOT")
 	if snapshotComplete {
+		fmt.Println("MARKERS received on all incoming channels!")
 		if !myInfo.Recording {
 			panic("Snapshot can't be complete if process hasn't started recording channel information.")
 		} else {
@@ -386,7 +394,7 @@ func snapshotTermination() {
 				for _, channel := range myInfo.OutboundChannels {
 					if myInfo.Initiator == channel.ClientName {
 						writeToConnection(channel.Connection, string(snapshotInfo))
-						fmt.Println("Sending SnapshotInfo: ", string(snapshotInfo))
+						fmt.Println("Sending SnapshotInfo:", string(snapshotInfo))
 						break
 					}
 				}
