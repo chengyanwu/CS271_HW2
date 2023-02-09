@@ -314,12 +314,21 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			}
 
 			counter += 1
+			fmt.Println("Received:", actionInfoSlice)
 
-			message := clientName + ": " + actionInfoSlice[2]
+			var message string
+			if len(actionInfoSlice) >= 3 {
+				// slice := strings.Split(string(actionInfoSlice[2][:len(actionInfoSlice[2])-1]), " ")
+				senderName := actionInfoSlice[2]
+				message = clientName + ": " + actionInfoSlice[1] + ", Receiving Token From " + senderName
+			} else {
+				message = clientName + ": " + actionInfoSlice[1]
+			}
+
 			globalSnapShot = append(globalSnapShot, message)
 
 			fmt.Println("Received new SNAPSHOT from client", clientName)
-			fmt.Println("Local state:", actionInfoSlice[2])
+			fmt.Println("Local state:", actionInfoSlice[1])
 
 			if counter == 4 {
 				counter = 0
@@ -349,21 +358,21 @@ func snapshotTermination() {
 		}
 	}
 
-	// PROTOCOL: [SNAPSHOT:TOKEN STATE:SENDER,MESSAGE:SENDER,MESSAGE:...]
-	var snapshotInfo = []byte("SNAPSHOT ")
+	// PROTOCOL: [SNAPSHOT TOKEN[true/false] SENDER,MESSAGE SENDER,MESSAGE:...]
+	var snapshotInfo = []byte("SNAPSHOT")
 	if snapshotComplete {
 		if !myInfo.Recording {
 			panic("Snapshot can't be complete if process hasn't started recording channel information.")
 		} else {
 			myInfo.Recording = false
 
-			snapshotInfo = fmt.Appendf(snapshotInfo, ": %v", myInfo.TokenForSnapshot)
+			snapshotInfo = fmt.Appendf(snapshotInfo, " %v", myInfo.TokenForSnapshot)
 			for _, inboundChannel := range myInfo.InboundChannels {
 				if inboundChannel.ConnectionType == client.INCOMING {
 					inboundChannel.Recording = true
 
 					for _, message := range inboundChannel.IncomingMessages {
-						snapshotInfo = fmt.Appendf(snapshotInfo, ":%s,%s", message.SenderName, message.Message)
+						snapshotInfo = fmt.Appendf(snapshotInfo, " %s,%s", message.SenderName, message.Message)
 					}
 
 					// clear incoming messages from channel
