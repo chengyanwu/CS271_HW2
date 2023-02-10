@@ -186,7 +186,8 @@ func takeUserInput() {
 func startTokenPassing() {
 	time.Sleep(1 * time.Second)
 	// pick random outbound channel
-	randomIndex := r.Intn(len(myInfo.TokenOutChannels))
+	rand.Seed(time.Now().UnixNano())
+	randomIndex := rand.Intn(len(myInfo.TokenOutChannels))
 	randomChannel := myInfo.TokenOutChannels[randomIndex]
 
 	// pass token to random channel
@@ -339,7 +340,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			if counter == 4 {
 				counter = 0
 				fmt.Println("Snaptshot Completed")
-				we
+
 				fmt.Println("Global Snapshot: \n", globalSnapShot)
 				globalSnapShot = nil
 			}
@@ -385,7 +386,7 @@ func snapshotTermination() {
 			}
 			snapshotInfo = fmt.Appendf(snapshotInfo, "\n")
 
-			// if self is initiator, append lcoal states to global sanpshot, else send message to initiator
+			// if self is initiator, append send message to initiator
 			if myInfo.Initiator != myInfo.ClientName {
 				for _, channel := range myInfo.OutboundChannels {
 					if myInfo.Initiator == channel.ClientName {
