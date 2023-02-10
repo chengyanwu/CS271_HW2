@@ -8,7 +8,6 @@ import (
 
 	"bufio"
 	"math/rand"
-	"strconv"
 	"strings"
 
 	// "sync"
@@ -282,7 +281,7 @@ func handleMARKER(clientName string, inboundChannelInfo *client.ConnectionInfo, 
 		// }
 		myInfo.TokenForSnapshot = myInfo.Token
 		go startSnapShot(myInfo.Initiator)
-	// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
+		// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
 	} else {
 		fmt.Println("Snapshot in progress: Received MARKER from client", clientName)
 		// stop recording - channel state is finalized
@@ -316,7 +315,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			// Case 2: receive MARKER
 		} else if actionInfoSlice[0] == "MARKER" {
 			go handleMARKER(clientName, &inboundChannelInfo, actionInfoSlice)
-			
+
 		} else if actionInfoSlice[0] == "SNAPSHOT" {
 			if myInfo.Initiator != myInfo.ClientName {
 				panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
@@ -340,9 +339,32 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			if counter == 4 {
 				counter = 0
 				fmt.Println("Snaptshot Completed")
-				message := myInfo.ClientName + ": " + strconv.FormatBool(myInfo.TokenForSnapshot)
-				globalSnapShot = append(globalSnapShot, message)
-				fmt.Println("Global Snapshot: ", globalSnapShot)
+				// message := myInfo.ClientName + ": " + strconv.FormatBool(myInfo.TokenForSnapshot)
+				// globalSnapShot = append(globalSnapShot, message)
+
+				// append local state to global snapshot
+				myInfo.Recording = false
+
+				var snapshotInfo = []byte(myInfo.ClientName)
+				snapshotInfo = fmt.Appendf(snapshotInfo, ": %v", myInfo.TokenForSnapshot)
+				for _, inboundChannel := range myInfo.InboundChannels {
+					if inboundChannel.ConnectionType == client.INCOMING {
+						inboundChannel.Recording = true
+
+						for _, message := range inboundChannel.IncomingMessages {
+							fmt.Println("test)")
+							snapshotInfo = fmt.Appendf(snapshotInfo, ", Received Token From: %s", message.SenderName)
+						}
+
+						// clear incoming messages from channel
+						inboundChannel.IncomingMessages = []client.Message{}
+					}
+				}
+
+				snapshotInfo = fmt.Appendf(snapshotInfo, "\n")
+				globalSnapShot = append(globalSnapShot, string(snapshotInfo))
+
+				fmt.Println("Global Snapshot: \n", globalSnapShot)
 				globalSnapShot = nil
 			}
 		}
