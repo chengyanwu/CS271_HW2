@@ -31,7 +31,6 @@ var port string
 var generator rand.Source
 var r *rand.Rand
 var counter = 0
-var selfSnapshotComplete = false // if initiator snapshot is complete
 var globalSnapShot []string
 var snapshotCounterMutex sync.Mutex
 var globalSnapshotMutex sync.Mutex
@@ -298,6 +297,7 @@ func handleMARKER(clientName string, inboundChannelInfo *client.ConnectionInfo, 
 
 // Handle inbound channel connection
 func processInboundChannel(connection net.Conn, clientName string, connectionType client.ConnectionType) {
+	go
 	fmt.Printf("Inbound client %s connected\n", clientName)
 	inboundChannelInfo := client.ConnectionInfo{connection, clientName, connectionType, true, []client.Message{}}
 
@@ -371,6 +371,7 @@ func snapshotTermination() {
 
 	// PROTOCOL: [SNAPSHOT TOKEN[true/false] SENDER,MESSAGE SENDER,MESSAGE:...]
 	var snapshotInfo = []byte("SNAPSHOT")
+	var senderName string
 	if snapshotComplete {
 		fmt.Println("MARKERS received on all incoming channels!")
 		if !myInfo.Recording {
@@ -385,6 +386,7 @@ func snapshotTermination() {
 
 					for _, message := range inboundChannel.IncomingMessages {
 						snapshotInfo = fmt.Appendf(snapshotInfo, " %s,%s", message.SenderName, message.Message)
+						senderName = message.SenderName
 					}
 
 					// clear incoming messages from channel
@@ -405,9 +407,17 @@ func snapshotTermination() {
 			} else {
 				var message string
 				if myInfo.TokenForSnapshot {
-					message = myInfo.ClientName + ": true, Received Token From: " + string(snapshotInfo[15]) + "\n"
+					if senderName != "" {
+						message = myInfo.ClientName + ": true, Received Token From: " + senderName + "\n"
+					} else {
+						message = myInfo.ClientName + ": true\n"
+					}
 				} else {
-					message = myInfo.ClientName + ": false, Received Token From: " + string(snapshotInfo[15]) + "\n"
+					if senderName != "" {
+						message = myInfo.ClientName + ": false, Received Token From: " + senderName + "\n"
+					} else {
+						message = myInfo.ClientName + ": false\n"
+					}
 				}
 				globalSnapshotMutex.Lock()
 				globalSnapShot = append(globalSnapShot, string(message))
