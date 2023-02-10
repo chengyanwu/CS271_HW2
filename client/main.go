@@ -400,9 +400,17 @@ func snapshotTermination() {
 			} else {
 				var message string
 				if myInfo.TokenForSnapshot == true {
-					message = myInfo.ClientName + ": true, Received Token From: " + senderName + "\n"
+					if senderName != "" {
+						message = myInfo.ClientName + ": true, Received Token From: " + senderName + "\n"
+					} else {
+						message = myInfo.ClientName + ": true\n"
+					}
 				} else {
-					message = myInfo.ClientName + ": false, Received Token From: " + senderName + "\n"
+					if senderName != "" {
+						message = myInfo.ClientName + ": false, Received Token From: " + senderName + "\n"
+					} else {
+						message = myInfo.ClientName + ": false\n"
+					}
 				}
 				globalSnapShot = append(globalSnapShot, string(message))
 			}
