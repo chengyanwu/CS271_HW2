@@ -364,6 +364,7 @@ func snapshotTermination() {
 
 	// PROTOCOL: [SNAPSHOT TOKEN[true/false] SENDER,MESSAGE SENDER,MESSAGE:...]
 	var snapshotInfo = []byte("SNAPSHOT")
+	var senderName string
 	if snapshotComplete {
 		fmt.Println("MARKERS received on all incoming channels!")
 		if !myInfo.Recording {
@@ -378,6 +379,7 @@ func snapshotTermination() {
 
 					for _, message := range inboundChannel.IncomingMessages {
 						snapshotInfo = fmt.Appendf(snapshotInfo, " %s,%s", message.SenderName, message.Message)
+						senderName = message.SenderName
 					}
 
 					// clear incoming messages from channel
@@ -398,9 +400,9 @@ func snapshotTermination() {
 			} else {
 				var message string
 				if myInfo.TokenForSnapshot == true {
-					message = myInfo.ClientName + ": true, Received Token From: " + string(snapshotInfo[15]) + "\n"
+					message = myInfo.ClientName + ": true, Received Token From: " + senderName + "\n"
 				} else {
-					message = myInfo.ClientName + ": false, Received Token From: " + string(snapshotInfo[15]) + "\n"
+					message = myInfo.ClientName + ": false, Received Token From: " + senderName + "\n"
 				}
 				globalSnapShot = append(globalSnapShot, string(message))
 			}
