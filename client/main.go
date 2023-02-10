@@ -18,11 +18,11 @@ const (
 	SERVER_HOST = "localhost"
 	SERVER_TYPE = "tcp"
 
-	A = "6000"
-	B = "6001"
-	C = "6002"
-	D = "6003"
-	E = "6004"
+	A = "7000"
+	B = "7001"
+	C = "7002"
+	D = "7003"
+	E = "7004"
 )
 
 var myInfo client.ClientInfo
@@ -34,6 +34,8 @@ var counter = 0
 var globalSnapShot []string
 var snapshotCounterMutex sync.Mutex
 var globalSnapshotMutex sync.Mutex
+var snapshotTerminationMutex sync.Mutex
+var snapshotCountChannel chan int = make(chan int)
 
 func main() {
 	processId := int64(os.Getpid())
@@ -101,8 +103,11 @@ func main() {
 	fmt.Println("Press \"enter\" AFTER all clients' servers are set up to connect to them")
 	fmt.Scanln()
 
-	// TODO: establish outbound client connections
+	// establish outbound client connections
 	establishClientConnections(connectedClients, myInfo.ClientName)
+
+	// set up logic to receive snapshots
+	go broadcastSnapshotInfo()
 
 	// 1) request snapshot using Chandy-Lamport
 	takeUserInput()
@@ -283,7 +288,7 @@ func handleMARKER(clientName string, inboundChannelInfo *client.ConnectionInfo, 
 		// 	}
 		// }
 		myInfo.TokenForSnapshot = myInfo.Token
-		go startSnapShot(myInfo.Initiator)
+		startSnapShot(myInfo.Initiator)
 		// Scenario 2: if process already received MARKER but receives another marker on this channel, stops recording on this channel
 	} else {
 		fmt.Println("Snapshot in progress: Received MARKER from client", clientName)
@@ -292,12 +297,48 @@ func handleMARKER(clientName string, inboundChannelInfo *client.ConnectionInfo, 
 	}
 
 	// check if MARKERS have been received on all incoming channels, and send messages to initiator if true
+	snapshotTerminationMutex.Lock()
 	snapshotTermination()
+	snapshotTerminationMutex.Unlock()
+}
+
+func handleSNAPSHOT(clientName string, actionInfoSlice []string) {
+	if myInfo.Initiator != myInfo.ClientName {
+		panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
+	}
+	// add mutex lock
+	snapshotCounterMutex.Lock()
+	counter += 1
+
+	fmt.Printf("Received new SNAPSHOT from client %s with state %s\n", clientName, actionInfoSlice[1])
+
+	var message string
+	if len(actionInfoSlice) >= 3 {
+		// slice := strings.Split(string(actionInfoSlice[2][:len(actionInfoSlice[2])-1]), " ")
+		senderName := string(actionInfoSlice[2][0])
+		message = clientName + ": " + actionInfoSlice[1] + ", Receiving Token From " + senderName + "\n"
+	} else {
+		message = clientName + ": " + actionInfoSlice[1] + "\n"
+	}
+
+	globalSnapshotMutex.Lock()
+	globalSnapShot = append(globalSnapShot, message)
+	globalSnapshotMutex.Unlock()
+
+	snapshotCountChannel <- counter
+	// if counter == 4 {
+	// 	counter = 0
+	// 	fmt.Println("Snaptshot Completed")
+
+	// 	fmt.Println("Global Snapshot: \n", globalSnapShot)
+	// 	globalSnapShot = nil
+	// }
+	snapshotCounterMutex.Unlock()
+	// fmt.Printf("Leaving zone: Received new SNAPSHOT from client %s with state %s\n", clientName, actionInfoSlice[1])
 }
 
 // Handle inbound channel connection
 func processInboundChannel(connection net.Conn, clientName string, connectionType client.ConnectionType) {
-	go
 	fmt.Printf("Inbound client %s connected\n", clientName)
 	inboundChannelInfo := client.ConnectionInfo{connection, clientName, connectionType, true, []client.Message{}}
 
@@ -309,6 +350,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 		handleError(err, fmt.Sprintf("Error receiving TOKEN, MARKER, or SNAPSHOT from client %s", clientName), connection)
 
 		actionInfoSlice := strings.Split(string(action[:len(action)-1]), " ")
+		fmt.Println("received:", actionInfoSlice)
 
 		// Case 1: receive TOKEN
 		// 1) Calculate chances of losing token
@@ -321,38 +363,27 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			go handleMARKER(clientName, &inboundChannelInfo, actionInfoSlice)
 
 		} else if actionInfoSlice[0] == "SNAPSHOT" {
-			if myInfo.Initiator != myInfo.ClientName {
-				panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
-			}
-			// add mutex lock
-			snapshotCounterMutex.Lock()
-			counter += 1
-			// fmt.Println("Received:", actionInfoSlice)
-			fmt.Printf("Received new SNAPSHOT from client %s with state %s\n", clientName, actionInfoSlice[1])
-
-			var message string
-			if len(actionInfoSlice) >= 3 {
-				// slice := strings.Split(string(actionInfoSlice[2][:len(actionInfoSlice[2])-1]), " ")
-				senderName := string(actionInfoSlice[2][0])
-				message = clientName + ": " + actionInfoSlice[1] + ", Receiving Token From " + senderName + "\n"
-			} else {
-				message = clientName + ": " + actionInfoSlice[1] + "\n"
-			}
-
-			globalSnapshotMutex.Lock()
-			globalSnapShot = append(globalSnapShot, message)
-			globalSnapshotMutex.Unlock()
-
-			if counter == 4 {
-				counter = 0
-				fmt.Println("Snaptshot Completed")
-
-				fmt.Println("Global Snapshot: \n", globalSnapShot)
-				globalSnapShot = nil
-			}
-			snapshotCounterMutex.Unlock()
+			go handleSNAPSHOT(clientName, actionInfoSlice)	
 		}
-		// TODO: Case 3: receive local snapshot (don't need to sleep), panic if initiator of the client received isn't self
+	}
+}
+
+func broadcastSnapshotInfo() {
+	for {
+		value := <-snapshotCountChannel
+		fmt.Println("Counter:", value)
+		if value == 5 {
+			counter = 0
+			fmt.Println("Snapshot completed")
+
+			fmt.Println("Global snapshot:")
+
+			for _, status := range globalSnapShot {
+				fmt.Print(status)
+			}
+
+			globalSnapShot = nil
+		}
 	}
 }
 
@@ -400,7 +431,7 @@ func snapshotTermination() {
 				for _, channel := range myInfo.OutboundChannels {
 					if myInfo.Initiator == channel.ClientName {
 						writeToConnection(channel.Connection, string(snapshotInfo))
-						fmt.Println("Sending SnapshotInfo:", string(snapshotInfo))
+						fmt.Printf("Sending local snapshot to initiator %s: %s\n", myInfo.Initiator, string(snapshotInfo))
 						break
 					}
 				}
@@ -419,9 +450,13 @@ func snapshotTermination() {
 						message = myInfo.ClientName + ": false\n"
 					}
 				}
+				snapshotCounterMutex.Lock()
+				counter+=1
 				globalSnapshotMutex.Lock()
 				globalSnapShot = append(globalSnapShot, string(message))
 				globalSnapshotMutex.Unlock()
+				snapshotCountChannel <- counter
+				snapshotCounterMutex.Unlock()
 			}
 		}
 	}
@@ -438,8 +473,10 @@ func handleError(err error, message string, connection net.Conn) {
 
 func writeToConnection(connection net.Conn, message string) {
 	// time.Sleep(3 * time.Second)
-	_, err := connection.Write([]byte(message))
+	fmt.Print("writing:", message)
+	c, err := connection.Write([]byte(message))
 
+	fmt.Println(c)
 	handleError(err, "Error writing.", connection)
 }
 
