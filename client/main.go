@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"strings"
 
-	// "sync"
+	"sync"
 	client "example/users/client/client_interface"
 )
 
@@ -31,7 +31,10 @@ var port string
 var generator rand.Source
 var r *rand.Rand
 var counter = 0
+var selfSnapshotComplete = false // if initiator snapshot is complete
 var globalSnapShot []string
+var snapshotCounterMutex sync.Mutex
+var globalSnapshotMutex sync.Mutex
 
 func main() {
 	processId := int64(os.Getpid())
@@ -322,6 +325,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				panic(fmt.Sprintf("Only the initiator %s, not %s, should be receiving SNAPSHOT messages", myInfo.Initiator, myInfo.ClientName))
 			}
 			// add mutex lock
+			snapshotCounterMutex.Lock()
 			counter += 1
 			// fmt.Println("Received:", actionInfoSlice)
 			fmt.Printf("Received new SNAPSHOT from client %s with state %s\n", clientName, actionInfoSlice[1])
@@ -335,7 +339,9 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				message = clientName + ": " + actionInfoSlice[1] + "\n"
 			}
 
+			globalSnapshotMutex.Lock()
 			globalSnapShot = append(globalSnapShot, message)
+			globalSnapshotMutex.Unlock()
 
 			if counter == 4 {
 				counter = 0
@@ -344,6 +350,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 				fmt.Println("Global Snapshot: \n", globalSnapShot)
 				globalSnapShot = nil
 			}
+			snapshotCounterMutex.Unlock()
 		}
 		// TODO: Case 3: receive local snapshot (don't need to sleep), panic if initiator of the client received isn't self
 	}
@@ -397,12 +404,14 @@ func snapshotTermination() {
 				}
 			} else {
 				var message string
-				if myInfo.TokenForSnapshot == true {
+				if myInfo.TokenForSnapshot {
 					message = myInfo.ClientName + ": true, Received Token From: " + string(snapshotInfo[15]) + "\n"
 				} else {
 					message = myInfo.ClientName + ": false, Received Token From: " + string(snapshotInfo[15]) + "\n"
 				}
+				globalSnapshotMutex.Lock()
 				globalSnapShot = append(globalSnapShot, string(message))
+				globalSnapshotMutex.Unlock()
 			}
 		}
 	}
