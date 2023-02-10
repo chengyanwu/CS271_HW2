@@ -10,19 +10,24 @@ import (
 	"math/rand"
 	"strings"
 
-	"sync"
 	client "example/users/client/client_interface"
+	"sync"
 )
 
 const (
 	SERVER_HOST = "localhost"
 	SERVER_TYPE = "tcp"
 
-	A = "7000"
-	B = "7001"
-	C = "7002"
-	D = "7003"
-	E = "7004"
+	// A = "7000"
+	// B = "7001"
+	// C = "7002"
+	// D = "7003"
+	// E = "7004"
+	A = "6000"
+	B = "6001"
+	C = "6002"
+	D = "6003"
+	E = "6004"
 )
 
 var myInfo client.ClientInfo
@@ -183,6 +188,8 @@ func takeUserInput() {
 			myInfo.Initiator = myInfo.ClientName
 			myInfo.TokenForSnapshot = myInfo.Token
 			myInfo.Recording = true
+			globalSnapShot = nil
+			counter = 0
 			startSnapShot(myInfo.Initiator)
 		} else {
 			fmt.Println("Invalid action:", action)
@@ -344,9 +351,11 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 
 	// Add new connection to self data structure
 	myInfo.InboundChannels = append(myInfo.InboundChannels, &inboundChannelInfo)
+	reader := bufio.NewReader(connection)
 
 	for {
-		action, err := bufio.NewReader(connection).ReadBytes('\n')
+		// action, err := bufio.NewReader(connection).ReadBytes('\n')
+		action, err := reader.ReadBytes('\n')
 		handleError(err, fmt.Sprintf("Error receiving TOKEN, MARKER, or SNAPSHOT from client %s", clientName), connection)
 
 		actionInfoSlice := strings.Split(string(action[:len(action)-1]), " ")
@@ -363,7 +372,8 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			go handleMARKER(clientName, &inboundChannelInfo, actionInfoSlice)
 
 		} else if actionInfoSlice[0] == "SNAPSHOT" {
-			go handleSNAPSHOT(clientName, actionInfoSlice)	
+			fmt.Println("test")
+			go handleSNAPSHOT(clientName, actionInfoSlice)
 		}
 	}
 }
@@ -451,7 +461,7 @@ func snapshotTermination() {
 					}
 				}
 				snapshotCounterMutex.Lock()
-				counter+=1
+				counter += 1
 				globalSnapshotMutex.Lock()
 				globalSnapShot = append(globalSnapShot, string(message))
 				globalSnapshotMutex.Unlock()
