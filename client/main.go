@@ -175,8 +175,8 @@ func takeUserInput() {
 			// TODO: Ian
 			myInfo.Initiator = myInfo.ClientName
 			myInfo.TokenForSnapshot = myInfo.Token
-			startSnapShot(myInfo.Initiator)
 			myInfo.Recording = true
+			startSnapShot(myInfo.Initiator)
 		} else {
 			fmt.Println("Invalid action:", action)
 		}
@@ -339,31 +339,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 			if counter == 4 {
 				counter = 0
 				fmt.Println("Snaptshot Completed")
-				// message := myInfo.ClientName + ": " + strconv.FormatBool(myInfo.TokenForSnapshot)
-				// globalSnapShot = append(globalSnapShot, message)
-
-				// append local state to global snapshot
-				myInfo.Recording = false
-
-				var snapshotInfo = []byte(myInfo.ClientName)
-				snapshotInfo = fmt.Appendf(snapshotInfo, ": %v", myInfo.TokenForSnapshot)
-				for _, inboundChannel := range myInfo.InboundChannels {
-					if inboundChannel.ConnectionType == client.INCOMING {
-						inboundChannel.Recording = true
-
-						for _, message := range inboundChannel.IncomingMessages {
-							fmt.Println("test)")
-							snapshotInfo = fmt.Appendf(snapshotInfo, ", Received Token From: %s", message.SenderName)
-						}
-
-						// clear incoming messages from channel
-						inboundChannel.IncomingMessages = []client.Message{}
-					}
-				}
-
-				snapshotInfo = fmt.Appendf(snapshotInfo, "\n")
-				globalSnapShot = append(globalSnapShot, string(snapshotInfo))
-
+				we
 				fmt.Println("Global Snapshot: \n", globalSnapShot)
 				globalSnapShot = nil
 			}
@@ -409,7 +385,7 @@ func snapshotTermination() {
 			}
 			snapshotInfo = fmt.Appendf(snapshotInfo, "\n")
 
-			// send message to initiator
+			// if self is initiator, append lcoal states to global sanpshot, else send message to initiator
 			if myInfo.Initiator != myInfo.ClientName {
 				for _, channel := range myInfo.OutboundChannels {
 					if myInfo.Initiator == channel.ClientName {
@@ -418,6 +394,14 @@ func snapshotTermination() {
 						break
 					}
 				}
+			} else {
+				var message string
+				if myInfo.TokenForSnapshot == true {
+					message = myInfo.ClientName + ": true, Received Token From: " + string(snapshotInfo[15]) + "\n"
+				} else {
+					message = myInfo.ClientName + ": false, Received Token From: " + string(snapshotInfo[15]) + "\n"
+				}
+				globalSnapShot = append(globalSnapShot, string(message))
 			}
 		}
 	}
