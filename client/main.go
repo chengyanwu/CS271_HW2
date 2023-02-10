@@ -344,13 +344,13 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 
 	// Add new connection to self data structure
 	myInfo.InboundChannels = append(myInfo.InboundChannels, &inboundChannelInfo)
-
+	ioReader := bufio.NewReader(connection)
 	for {
-		action, err := bufio.NewReader(connection).ReadBytes('\n')
+		action, err := ioReader.ReadBytes('\n')
 		handleError(err, fmt.Sprintf("Error receiving TOKEN, MARKER, or SNAPSHOT from client %s", clientName), connection)
 
 		actionInfoSlice := strings.Split(string(action[:len(action)-1]), " ")
-		fmt.Println("received:", actionInfoSlice)
+		// fmt.Println("received:", actionInfoSlice)
 
 		// Case 1: receive TOKEN
 		// 1) Calculate chances of losing token
@@ -371,7 +371,7 @@ func processInboundChannel(connection net.Conn, clientName string, connectionTyp
 func broadcastSnapshotInfo() {
 	for {
 		value := <-snapshotCountChannel
-		fmt.Println("Counter:", value)
+		// fmt.Println("Counter:", value)
 		if value == 5 {
 			counter = 0
 			fmt.Println("Snapshot completed")
@@ -395,7 +395,7 @@ func snapshotTermination() {
 	for _, inboundChannel := range myInfo.InboundChannels {
 		// if channel is still recording, that means it is still waiting for MARKER message
 		if inboundChannel.ConnectionType == client.INCOMING && inboundChannel.Recording {
-			fmt.Printf("Channel from %s is still waiting for MARKER\n", inboundChannel.ClientName)
+			// fmt.Printf("Channel from %s is still waiting for MARKER\n", inboundChannel.ClientName)
 			snapshotComplete = false
 		}
 	}
@@ -473,10 +473,10 @@ func handleError(err error, message string, connection net.Conn) {
 
 func writeToConnection(connection net.Conn, message string) {
 	// time.Sleep(3 * time.Second)
-	fmt.Print("writing:", message)
-	c, err := connection.Write([]byte(message))
+	// fmt.Print("writing:", message)
+	_, err := connection.Write([]byte(message))
 
-	fmt.Println(c)
+	// fmt.Println(c)
 	handleError(err, "Error writing.", connection)
 }
 
